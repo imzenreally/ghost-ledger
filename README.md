@@ -6,7 +6,11 @@ Evidence-first Tesla charging bill reconciliation for TeslaMate. Sentry USB supp
 
 Early development. Nothing deployed; no live Tesla authorization or database writer is enabled.
 
-Implemented first slice: a pure, offline reconciliation preview (`charging_costs/reconcile.py`) using explicitly synthetic billing records and charging sessions. Its 35 unit tests pass; no live reader or writer exists yet.
+Implemented the offline reconciliation preview (`charging_costs/reconcile.py`) and a runnable, owner-specific Fleet sign-in plus single-request billing probe (`auth/ghost_ledger.py`). No live Tesla authorization, successful billing pull, database writer, or deployment is claimed yet.
+
+[Sign-in/test instructions](docs/sign-in.md) describe the additional callback, private credentials, laptop-to-M1 loopback tunnel, and durable one-call guard. Existing HA authorization is never borrowed. Authentication tests use synthetic responses and real local loopback HTTP; the billing probe requires explicit invocation.
+
+Qwen use for this project is stopped at the owner's request; further work is direct implementation.
 
 Run the tests with Python 3.12:
 

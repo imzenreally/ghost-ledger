@@ -1,6 +1,6 @@
 # Charging Cost Reconciliation Implementation Plan
 
-> **For Hermes:** Use subagent-driven-development principles; local Qwen supplies bounded artifacts, parent verifies and executes tests. No automatic paid-model delegation.
+> **Execution:** Direct implementation. the owner stopped Qwen use for this project because latency threatens the Wednesday road-trip deadline. Automated tests remain the primary verification; do not dispatch further Qwen tasks for Ghost Ledger.
 
 **Goal:** Import evidenced Tesla charging bills into the correct TeslaMate charging sessions, later supporting Sentry USB.
 
@@ -10,12 +10,12 @@
 
 ## Scope and boundaries
 - Cost utility is top priority; do not change unfinished bridge files.
-- Local code/tests authorized. No Tesla authenticated requests, HA token extraction, production DB access/writes, OAuth or billing changes, deployment, commits or pushes.
+- Local code/tests and private GitHub commits/pushes authorized. the owner authorized one bounded Fleet charging-history test, no retries or pagination; authentication prerequisites are not yet complete. No HA token extraction, app permission/billing-limit changes, production DB writes, or deployment without resolving prerequisites and exact scope.
 - MVP previews exact-session updates. No dashboard, tariff warehouse, foreign-exchange estimates, PDF parser, or Sentry USB writer yet.
 - Reuse audited MIT supported-Fleet reader patterns where useful; do not copy unlicensed projects. Official endpoint/account semantics must be verified before API implementation.
 - Test fixtures are explicitly synthetic, not claimed to be Tesla API responses.
 
-## Task 1: Test-first pure matcher (local Qwen test draft, parent implementation)
+## Task 1: Test-first pure matcher (initial slice implemented)
 Create standalone `charging_costs/reconcile.py` and `charging_costs/test_reconcile.py` without importing bridge modules.
 Contract: `preview(bill: dict, sessions: list[dict], *, currency='USD', tolerance_seconds=300) -> dict`.
 Bill normalized fields: `external_id`, `vin`, `started_at` (aware datetime), `amount` (Decimal), `currency`, `finalized` (bool).
@@ -39,3 +39,10 @@ After explicit write approval and backup: transactional compare-and-set on inten
 
 ## Task 6: Sentry USB
 Inspect supported import/API interface independently. Add second adapter only after TeslaMate workflow is correct. No inferred compatibility.
+
+## Road-trip critical path (the planned trip)
+1. Finish runnable sign-in and single-request billing probe, with loopback callback, separate grant, private token state, strict Tesla endpoint allowlist, no redirects/proxies/retries, and durable request reservation before transmission.
+2. User registers additional callback and signs in; validate one real history response against one invoice before assuming financial semantics. Existing HA app and grant stay intact. Localhost callback requires browser on runner machine or a loopback SSH tunnel; never expose callback listener to LAN.
+3. Read-only TeslaMate session comparison, then narrow approved writer with backups, compare-and-set, idempotence and readback. Protect existing/manual/home costs; ambiguous or pending bills remain unresolved.
+4. Configure conservative bounded billing catch-up using existing local charging state; independent request allowance below shared account budget. Dashboard usage remains authoritative. Do not claim this controls HA's other consumption.
+5. Exercise installed process/restart behavior before claiming road-trip readiness. Sentry USB, modular adapters, dashboards and bridge completion are deferred.
