@@ -22,4 +22,8 @@ tokens.json
 history.json
 dashboard-config.json
 dashboard-access.txt
+mqtt-config.json
+refresh-state.json
+passive-status.json
+*.lock
 .DS_Store

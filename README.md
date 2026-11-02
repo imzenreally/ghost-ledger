@@ -9,7 +9,7 @@ Evidence-first **Supercharger billing** reconciliation for TeslaMate, with a pri
 - Transactional missing-cost writes with a fresh scoped backup, pending evidence/audit, in-transaction revalidation, `cost IS NULL` protection and exact readback.
 - Real owner-authorized updates independently verified against the complete charging-cost table; repeat import performed no further writes.
 - LAN/VPN-only, read-only dashboard with login disabled at the owner's request installed on the owner's M1. Shows billed/current costs, imported sessions and unresolved conflicts. No public route.
-- No scheduler, unattended Fleet fetching, automatic token refresh, vehicle polling/wake/commands, or HA credential reuse.
+- Own-token renewal and passive TeslaMate completion detection are installed; see [maintenance and detection](docs/passive-maintenance.md). No billing scheduler, unattended billing fetching/imports, vehicle polling/wake/commands, or HA credential reuse.
 
 See [owner deployment, security and recovery](docs/owner-milestone.md).
 
@@ -30,7 +30,7 @@ python ledger.py preview --fetch
 python ledger.py import --apply --fetch
 ```
 
-Manual request allowance: **4/day, 100/month, UTC**, persistent and reserved before transport; failed requests count. This is a request cap, not a guaranteed dollar estimate or a controller for HA's separate usage. No retries or pagination. The original lifetime test-probe allowance is never reset. Expired Ghost Ledger authorization blocks fetching until separate sign-in is renewed; it does not borrow HA tokens.
+Manual request allowance: **4/day, 100/month, UTC**, persistent and reserved before transport; failed requests count. This is a request cap, not a guaranteed dollar estimate or a controller for HA's separate usage. No retries or pagination. The original lifetime test-probe allowance is never reset. The passive service renews Ghost Ledger authorization automatically. If rotation is blocked/ambiguous or consent is revoked, separate sign-in/recovery is required; it never borrows HA tokens.
 
 [Sign-in instructions](docs/sign-in.md) describe the registered loopback callback, private credentials and browser tunnel. Those commands are the original one-shot access probes, not the ongoing manual import interface.
 

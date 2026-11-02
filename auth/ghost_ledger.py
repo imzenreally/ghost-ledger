@@ -47,8 +47,13 @@ def login(state_dir,client_id,client_secret,*,transport=tesla_transport):
         print('Open this link in a browser on this machine, or use the documented SSH loopback tunnel:',flush=True)
         print(attempt.authorize_url(),flush=True)
         form=callback.wait()
-    tokens=exchange_code(form,client_secret,transport=transport)
-    save_tokens(state_dir,tokens)
+    # Share the package-level rotation lock with the renewal service, including
+    # exchange/save so a fresh interactive grant cannot race an old-token refresh.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from auth.refresh import rotation_lock
+    with rotation_lock(state_dir):
+        tokens=exchange_code(form,client_secret,transport=transport)
+        save_tokens(state_dir,tokens)
     print('Ghost Ledger authorization saved privately. No billing request sent.',flush=True)
 
 
