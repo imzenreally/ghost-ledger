@@ -8,13 +8,13 @@ The dashboard is deliberately read-only. Importing is an explicit owner CLI oper
 
 ## Private dashboard
 
-- Owner-selected access: **LAN/VPN only with login**.
+- Owner-selected access: **LAN/VPN only, no login**, superseding the initial login requirement. Anyone on the reachable LAN/VPN can view charging history. Installed LaunchAgent explicitly sets `GHOST_LEDGER_AUTH_REQUIRED=false`; other installations default to requiring login.
 - Installed origin: `http://10.0.0.10:8897/` on the M1.
-- Login is password-only. The generated password is stored privately on that machine in `~/.local/share/ghost-ledger/dashboard-access.txt`; it is not in Git, a URL, or logs.
+- Login is disabled. The former password is retained privately and is not needed to access the dashboard. Its file is `~/.local/share/ghost-ledger/dashboard-access.txt`; it is not in Git, a URL, or logs.
 - Signing key/password hash: mode-0600 `~/.local/share/ghost-ledger/dashboard-config.json` in the mode-0700 private state directory. Preserve this file across restarts. Never paste it into an issue or chat.
 - No public DNS, reverse proxy, Cloudflare tunnel, or WAN forwarding has been created.
 - This is HTTP on the trusted LAN. A password does not encrypt LAN traffic. Use the VPN for offsite access; private HTTPS can be a separate enhancement. Do not expose this listener publicly.
-- Anonymous session API requests return 401; login/logout are CSRF protected. Strict Host/Origin checks, no-store, CSP, HttpOnly/SameSite cookies and bounded login throttling apply. Dashboard responses exclude raw VIN, billing IDs, invoice references, private operation evidence, DB credentials and tokens.
+- Anonymous dashboard/API requests return 200 in the selected no-login mode. Login UI is hidden; `/login` redirects home. Strict Host/Origin checks, no-store and CSP remain. Dashboard responses exclude raw VIN, billing IDs, invoice references, private operation evidence, DB credentials and tokens. Login protection remains available for other deployments.
 
 ### Installed process
 

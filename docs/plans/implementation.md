@@ -11,7 +11,7 @@
 ## Scope and boundaries
 - Cost utility is top priority; do not change unfinished bridge files.
 - Local code/tests and private GitHub commits/pushes authorized. Separate Fleet authorization, one history response and one invoice are verified. the owner now authorizes building the narrow TeslaMate missing-cost importer and simple dashboard. Preserve existing/manual/home costs, require backup and transactional readback for production writes. No HA token extraction or app permission/billing-limit changes.
-- Current milestone includes a small review dashboard, explicitly LAN/VPN only WITH login. No public proxy or DNS exposure. Home remains fixed $0.10/kWh, no changes. No automatic scheduling, additional Fleet pagination/retries, tariff warehouse, FX, Sentry USB, or Traccar work in this milestone.
+- Current milestone includes a small review dashboard, explicitly LAN/VPN only; owner subsequently requested login disabled. No public proxy or DNS exposure. Home remains fixed $0.10/kWh, no changes. No automatic scheduling, additional Fleet pagination/retries, tariff warehouse, FX, Sentry USB, or Traccar work in this milestone.
 - Reuse audited MIT supported-Fleet reader patterns where useful; do not copy unlicensed projects. Official endpoint/account semantics must be verified before API implementation.
 - Test fixtures are explicitly synthetic, not claimed to be Tesla API responses.
 

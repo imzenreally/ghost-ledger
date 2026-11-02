@@ -23,6 +23,7 @@ def create_app(store, config=None):
     app.config.update(
         SECRET_KEY=os.environ.get('GHOST_LEDGER_SECRET_KEY'),
         PASSWORD_HASH=os.environ.get('GHOST_LEDGER_PASSWORD_HASH'),
+        AUTH_REQUIRED=os.environ.get('GHOST_LEDGER_AUTH_REQUIRED', 'true') != 'false',
         SESSION_COOKIE_NAME='ghost_ledger_session',
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Strict',
         SESSION_COOKIE_SECURE=False, PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
@@ -31,14 +32,15 @@ def create_app(store, config=None):
     )
     if config:
         app.config.update(config)
-    if not app.config['PASSWORD_HASH'] or len(app.config.get('SECRET_KEY') or '') < 32:
-        raise ValueError('Dashboard login configuration is required')
-    if not re.fullmatch(r'(?:scrypt:[0-9]+:[0-9]+:[0-9]+|pbkdf2:sha(?:256|512):[0-9]+)\$[A-Za-z0-9]+\$[0-9a-f]{64,128}', app.config['PASSWORD_HASH']):
-        raise ValueError('A supported Werkzeug password hash is required')
-    try:
-        check_password_hash(app.config['PASSWORD_HASH'], 'configuration-validation')
-    except (ValueError, OverflowError):
-        raise ValueError('Invalid password hash configuration') from None
+    if app.config['AUTH_REQUIRED']:
+        if not app.config['PASSWORD_HASH'] or len(app.config.get('SECRET_KEY') or '') < 32:
+            raise ValueError('Dashboard login configuration is required')
+        if not re.fullmatch(r'(?:scrypt:[0-9]+:[0-9]+:[0-9]+|pbkdf2:sha(?:256|512):[0-9]+)\$[A-Za-z0-9]+\$[0-9a-f]{64,128}', app.config['PASSWORD_HASH']):
+            raise ValueError('A supported Werkzeug password hash is required')
+        try:
+            check_password_hash(app.config['PASSWORD_HASH'], 'configuration-validation')
+        except (ValueError, OverflowError):
+            raise ValueError('Invalid password hash configuration') from None
     if store is None:
         from ledger_store import LedgerStore
         store = LedgerStore(os.environ.get('GHOST_LEDGER_STATE', 'state/ledger.sqlite3'))
@@ -78,13 +80,15 @@ def create_app(store, config=None):
             abort(403)
         if request.endpoint is None:
             return None
-        if request.endpoint not in ('login', 'healthz') and not session.get('authenticated'):
+        if app.config['AUTH_REQUIRED'] and request.endpoint not in ('login', 'healthz') and not session.get('authenticated'):
             if request.path.startswith('/api/'):
                 return jsonify(error='Authentication required'), 401
             return redirect('/login')
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
+        if not app.config['AUTH_REQUIRED']:
+            return redirect('/')
         error = None
         if request.method == 'POST':
             if not valid_csrf():
@@ -119,6 +123,8 @@ def create_app(store, config=None):
 
     @app.post('/logout')
     def logout():
+        if not app.config['AUTH_REQUIRED']:
+            abort(404)
         if not valid_csrf():
             abort(403)
         session.clear()

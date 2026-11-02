@@ -8,7 +8,7 @@ Evidence-first **Supercharger billing** reconciliation for TeslaMate, with a pri
 - Manual importer with exact vehicle identity, unique start/end/charger-energy corroboration, paid USD billing validation and conservative unsupported-record rejection.
 - Transactional missing-cost writes with a fresh scoped backup, pending evidence/audit, in-transaction revalidation, `cost IS NULL` protection and exact readback.
 - Real owner-authorized updates independently verified against the complete charging-cost table; repeat import performed no further writes.
-- LAN/VPN-only password-protected, read-only dashboard installed on the owner's M1. Shows billed/current costs, imported sessions and unresolved conflicts. No public route.
+- LAN/VPN-only, read-only dashboard with login disabled at the owner's request installed on the owner's M1. Shows billed/current costs, imported sessions and unresolved conflicts. No public route.
 - No scheduler, unattended Fleet fetching, automatic token refresh, vehicle polling/wake/commands, or HA credential reuse.
 
 See [owner deployment, security and recovery](docs/owner-milestone.md).
