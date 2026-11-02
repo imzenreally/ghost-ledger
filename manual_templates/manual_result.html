@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}Manual cost result · Ghost Ledger{% endblock %}
+{% block body %}<main><header><h1>{{ 'Manual cost saved' if saved else 'Manual cost not confirmed' }}</h1><a href="/">Dashboard</a></header><p role="status">{{ message }}</p><p><a href="/manual">Return to manual costs</a></p></main>{% endblock %}

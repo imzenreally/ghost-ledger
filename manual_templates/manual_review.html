@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Review manual cost · Ghost Ledger{% endblock %}
+{% block body %}<main><header><h1>Review manual charging cost</h1><a href="/manual">Cancel / start over</a></header>
+<p>No changes have been made. This review expires after five minutes and can be used only once.</p>
+<section class="panel"><div class="panel-head"><h2>Session #{{ review.snapshot.id }} · Car {{ review.snapshot.car_id }}</h2></div>
+<dl><dt>Geofence</dt><dd>{{ review.snapshot.geofence_name }}</dd>
+<dt>Started (UTC)</dt><dd>{{ review.snapshot.start_date }}</dd><dt>Ended (UTC)</dt><dd>{{ review.snapshot.end_date }}</dd>
+<dt>Energy used</dt><dd>{{ review.snapshot.charge_energy_used if review.snapshot.charge_energy_used is not none else 'Unknown' }} kWh</dd>
+<dt>Before (USD)</dt><dd>{{ review.snapshot.cost if review.snapshot.cost is not none else 'Not set (NULL)' }}</dd>
+<dt>After (USD)</dt><dd>{{ review.amount }}</dd><dt>Provider</dt><dd>{{ review.provider }}</dd>
+<dt>Replacement authorized</dt><dd>{{ 'Yes' if review.replace_existing else 'No — missing cost only' }}</dd></dl></section>
+<p>This is your manually entered receipt total, not Tesla-verified billing. Only this session's cost will change. A private database backup is required before saving.</p>
+<form method="post" action="/manual/apply"><input type="hidden" name="csrf_token" value="{{ manual_csrf }}"><input type="hidden" name="review_nonce" value="{{ review.nonce }}"><button type="submit">Save to TeslaMate</button></form>
+</main>{% endblock %}

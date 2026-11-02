@@ -47,6 +47,42 @@ Private operational files:
 
 The read-only LAN dashboard refreshes from the same import ledger after writes. Its network scope and owner-selected no-login mode are unchanged.
 
+## Daily safety net and notifications
+
+The finite 5/30/120-minute event checks are supplemented by a daily database reconciliation. It runs at **08:00 in `GHOST_LEDGER_TIMEZONE`** (default `UTC`); a restart after that time catches up once for the local date. Time-zone-aware local dates handle daylight-saving changes. The owner selects their actual time zone in private deployment configuration.
+
+The daily pass discovers completed non-home sessions with missing costs from the preceding seven days, excluding the most recent two hours so it does not preempt the initial retry window. This catches late Tesla bills and sessions missed during subscriber downtime. Discovery is read-only and bounded; overflow stops for review rather than silently dropping rows. If there are no eligible gaps, there is **no Tesla request**. Actual DB start/end timestamps—not invented MQTT receipts—identify these jobs. Waiting sessions can be reconsidered on later days; conflicts, uncertain commits and other review states are not blindly retried.
+
+Daily and event work share the same **four-request daily / 100-request monthly** history allowance and existing guarded importer. Daily work takes precedence when due; a busy day can exhaust the allowance and delay reconciliation. No cap is silently increased. The daily state file is private `daily_reconcile.sqlite3`.
+
+Optional Pushover notifications are enabled by pointing `GHOST_LEDGER_PUSHOVER_KEYS_FILE` at a private, owner-readable regular file with these assignment names (supply your own values):
+
+```text
+PUSHOVER_API_TOKEN=<your-application-token>
+PUSHOVER_USER_KEY=<your-user-key>
+```
+
+Require file mode `0600`, no symlinks/hardlinks. Never commit this file. The default without a credential path is disabled. Notifications use the official HTTPS message API, normal priority, bounded transport and durable deduplication in private `notifications.sqlite3`.
+
+- New verified automatic imports and manual cost saves notify with the amount and local session ID.
+- New conflicts, blocked authorization, exhausted request allowances and daily failures produce attention alerts, coalesced to at most once per issue/session per UTC day.
+- Clean daily runs, ordinary waiting/retry slots, historical imports and old preview-only disagreements stay quiet.
+- Notification failures cannot block charging-cost reconciliation. Ambiguous sends are not blindly repeated; API acceptance is not a device delivery/read receipt.
+
+## Manual receipt totals (Blink and other non-Tesla charging)
+
+The dashboard's `/manual` page lets the owner enter a receipt total for completed non-home sessions — Blink/work Level 2, grocery-store chargers, anything TeslaMate can't bill. Enabled per deployment via the private dashboard configuration; the public default stays off, and enabling it requires a real signing key even without login.
+
+- The entry page lists completed non-home sessions from the last 30 days (read-only, ≤100 rows, unknown geofences included; home is always excluded).
+- The owner selects a session, picks a provider (Blink/Other) and enters the USD total (0–10000, ≤2 decimals).
+- Replacing an existing cost requires an explicit replacement checkbox; existing values including zero are otherwise protected.
+- A signed five-minute review step re-reads the session, confirms the exact snapshot, and issues a one-use nonce.
+- Saving takes a scoped backup first, then revalidates the full session identity under serializable locking and compare-and-swap before a single guarded write; an independent post-commit connection confirms the stored amount.
+- Failures and ambiguity become durable audit states (`pending`, `uncertain`, `protected`) and never auto-retry; a session whose identity changed refuses to save.
+- Manual entries never fabricate Tesla/Fleet provenance: audit outcomes use `manual_saved`, not `imported`, and do not create Fleet preview rows.
+
+This is a deliberate write path: read-only dashboard routes are unchanged, and only this explicitly reviewed form writes a cost.
+
 ## Verification and limitations
 
 Tests exercise the complete synthetic completion → read-only DB confirmation → durable schedule → injected Tesla response → real disposable PostgreSQL update/readback, including backup and repeat no-op behavior. Synthetic API responses are not represented as live Tesla billing data.

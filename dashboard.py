@@ -24,6 +24,7 @@ def create_app(store, config=None):
         SECRET_KEY=os.environ.get('GHOST_LEDGER_SECRET_KEY'),
         PASSWORD_HASH=os.environ.get('GHOST_LEDGER_PASSWORD_HASH'),
         AUTH_REQUIRED=os.environ.get('GHOST_LEDGER_AUTH_REQUIRED', 'true') != 'false',
+        MANUAL_COSTS_ENABLED=os.environ.get('GHOST_LEDGER_MANUAL_COSTS', 'false') == 'true',
         SESSION_COOKIE_NAME='ghost_ledger_session',
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Strict',
         SESSION_COOKIE_SECURE=False, PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
@@ -32,6 +33,8 @@ def create_app(store, config=None):
     )
     if config:
         app.config.update(config)
+    if app.config['MANUAL_COSTS_ENABLED'] and len(app.config.get('SECRET_KEY') or '') < 32:
+        raise ValueError('Manual cost entry requires a signing key for CSRF/review protection')
     if app.config['AUTH_REQUIRED']:
         if not app.config['PASSWORD_HASH'] or len(app.config.get('SECRET_KEY') or '') < 32:
             raise ValueError('Dashboard login configuration is required')
@@ -169,6 +172,9 @@ def create_app(store, config=None):
     def sessions():
         return jsonify(page_data())
 
+    if app.config['MANUAL_COSTS_ENABLED']:
+        from manual_costs import register_manual_costs
+        register_manual_costs(app, store=store)
     return app
 
 

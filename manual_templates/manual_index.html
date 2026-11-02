@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Manual charging cost · Ghost Ledger{% endblock %}
+{% block body %}<main>
+<header><h1>Manual charging cost</h1><a href="/">Dashboard</a></header>
+<p>Enter the total from your Blink or other charging receipt, in USD. No receipt upload or Tesla billing lookup is performed.</p>
+<p class="muted">Completed non-home sessions from the last 30 days (up to 100). All times are UTC. Unknown geofences are included; away does not imply Supercharger.</p>
+<form method="post" action="/manual/preview">
+<input type="hidden" name="csrf_token" value="{{ manual_csrf }}">
+<label>Charging session <select name="session_id" required><option value="">Select a session</option>
+{% for row in rows %}<option value="{{ row.id }}">#{{ row.id }} · Car {{ row.car_id }} · {{ row.start_date }} → {{ row.end_date }} UTC · {{ row.geofence_name }} · {{ row.charge_energy_used or 'Unknown' }} kWh used · current USD {{ row.cost if row.cost is not none else 'not set' }}</option>{% endfor %}
+</select></label>
+<p><label>Receipt total (USD) <input type="text" inputmode="decimal" name="amount" maxlength="8" required placeholder="0.00"></label></p>
+<p><label>Provider <select name="provider"><option value="Blink">Blink</option><option value="Other">Other</option></select></label></p>
+<p><label><input type="checkbox" name="replace_existing" value="yes"> Explicitly replace an existing cost (including zero), if present</label></p>
+<button type="submit">Review — no changes yet</button>
+</form>
+{% if not rows %}<p>No eligible charging sessions found.</p>{% endif %}
+</main>{% endblock %}

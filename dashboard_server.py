@@ -17,6 +17,7 @@ def server_settings(path):
     env.update(GHOST_LEDGER_PASSWORD_HASH=config['password_hash'],
                GHOST_LEDGER_SECRET_KEY=config['secret_key'],
                GHOST_LEDGER_STATE=config['state'],
+               GHOST_LEDGER_MANUAL_COSTS='true' if config.get('manual_cost_entry') else 'false',
                GHOST_LEDGER_ALLOWED_HOSTS=','.join((str(address)+':8897','localhost:8897','127.0.0.1:8897')))
     args = [sys.executable, '-m', 'gunicorn', '--bind', str(address)+':8897',
             '--workers', '1', '--threads', '4', '--umask', '0077',

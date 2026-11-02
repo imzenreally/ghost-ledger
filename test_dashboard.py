@@ -35,8 +35,8 @@ class DashboardTests(unittest.TestCase):
         html = self.client.get('/').text
         self.assertIn('Ghost Ledger', html)
         self.assertIn('10¢/kWh', html)
-        self.assertIn('No scheduler', html)
-        self.assertIn('No live auto-fetch', html)
+        self.assertIn('Read-only dashboard', html)
+        self.assertNotIn('Enter charging receipt', html)
         self.assertIn('No saved snapshot', html)
         self.assertEqual(self.client.get('/api/sessions').json['total'], 0)
         self.assertEqual(self.client.post('/api/sessions').status_code, 405)

@@ -6,6 +6,11 @@ class Store:
         return {'rows': [], 'updated_at':None, 'warnings':[]}
 
 class NoLoginTests(unittest.TestCase):
+    def test_manual_writes_require_a_signing_key_even_without_login(self):
+        with self.assertRaises(ValueError):
+            create_app(Store(),{'AUTH_REQUIRED':False,'MANUAL_COSTS_ENABLED':True,
+                                'PASSWORD_HASH':None,'SECRET_KEY':None})
+
     def test_explicit_no_login_keeps_review_and_boundaries(self):
         app=create_app(Store(), {'AUTH_REQUIRED':False, 'PASSWORD_HASH':None, 'SECRET_KEY':None,
                                   'ALLOWED_HOSTS':['localhost:8897']})

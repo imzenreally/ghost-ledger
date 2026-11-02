@@ -28,6 +28,36 @@ class WorkerTests(unittest.TestCase):
             scheduler.run_due(lambda jobs:(sizes.append(len(jobs)) or {j['session_id']:'protected' for j in jobs}))
             self.assertEqual(sizes,[20])
 
+    def test_daily_and_notifications_are_added_without_removing_event_checks(self):
+        from billing_worker import maintenance_cycle
+        calls=[]
+        class Detector:
+            def snapshot(self):return {'rows':[]}
+        class Scheduler:
+            def sync(self,rows):calls.append('sync')
+            def run_due(self,check):calls.append('event');return {'status':'ok','jobs':[]}
+        class Daily:
+            def run_due(self,check):calls.append('daily');return {'status':'ok'}
+        class Notifier:
+            def observe(self,store,event,daily,passive):calls.append('notify');return {'status':'ok'}
+        result=maintenance_cycle(Detector(),Scheduler(),lambda jobs:None,Daily(),Notifier(),object(),{})
+        self.assertEqual(calls,['daily','sync','event','notify'])
+        self.assertEqual(result['event']['status'],'ok')
+
+    def test_notification_failure_does_not_block_billing_or_daily(self):
+        from billing_worker import maintenance_cycle
+        from unittest.mock import Mock
+        detector=Mock();detector.snapshot.return_value={'rows':[]}
+        scheduler=Mock();scheduler.run_due.return_value={'status':'ok','jobs':[]}
+        daily=Mock();daily.run_due.side_effect=RuntimeError('private database error')
+        notifier=Mock();notifier.observe.side_effect=RuntimeError('private delivery error')
+        result=maintenance_cycle(detector,scheduler,lambda jobs:None,daily,notifier,object(),{})
+        scheduler.run_due.assert_called_once()
+        self.assertEqual(result['event']['status'],'ok')
+        self.assertEqual(result['daily']['status'],'needs_review')
+        self.assertEqual(result['notifications']['status'],'blocked')
+        self.assertNotIn('private',str(result))
+
     def test_empty_detection_never_calls_billing(self):
         from billing_worker import cycle
         calls=[]
