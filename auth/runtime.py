@@ -1,7 +1,7 @@
 """Owner-specific Fleet sign-in storage and a one-request billing probe.
 
-No refresh loop, background polling, vehicle calls, invoice downloads or DB writer.
-The persistent probe allowance is ONE request total, not one per invocation.
+No refresh loop, background polling, vehicle calls or DB writer.
+The history and explicitly authorized invoice probes each reserve ONE request total.
 """
 import json
 import math
@@ -13,9 +13,11 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import quote, unquote
 
 TOKEN_URL='https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token'
 HISTORY_URL='https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/dx/charging/history?pageSize=5'
+INVOICE_PREFIX='https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/dx/charging/invoice/'
 MAX_RESPONSE=2*1024*1024
 
 class BudgetExceeded(ValueError):
@@ -36,11 +38,15 @@ def _private_dir(root):
 
 
 def _atomic_json(root,name,data):
+    return _atomic_bytes(root,name,json.dumps(data,allow_nan=False,separators=(',',':')).encode())
+
+
+def _atomic_bytes(root,name,data):
     root=_private_dir(root)
     fd,path=tempfile.mkstemp(prefix='.pending-',dir=root)
     try:
-        with os.fdopen(fd,'w') as f:
-            json.dump(data,f,allow_nan=False,separators=(',',':'))
+        with os.fdopen(fd,'wb') as f:
+            f.write(data)
             f.flush()
             os.fsync(f.fileno())
         os.replace(path,root/name)
@@ -106,6 +112,11 @@ def tesla_transport(url,data,headers,timeout):
         method='POST'; limit=65536
     elif url==HISTORY_URL and data is None:
         method='GET'; limit=MAX_RESPONSE
+    elif url.startswith(INVOICE_PREFIX) and data is None:
+        segment=url[len(INVOICE_PREFIX):]
+        if not segment or segment in ('.','..') or quote(unquote(segment),safe='')!=segment:
+            raise ValueError('Tesla invoice target rejected')
+        method='GET'; limit=MAX_RESPONSE
     else:
         raise ValueError('Tesla request target rejected')
     if isinstance(data,str):
@@ -128,7 +139,7 @@ def tesla_transport(url,data,headers,timeout):
         raise ValueError('Tesla response could not be read; request was not retried') from None
 
 
-def _reserve_probe(root):
+def _reserve_probe(root,*,invoice=False):
     root=_private_dir(root)
     path=root/'probe-budget.sqlite3'
     fd=os.open(path,os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
@@ -138,13 +149,14 @@ def _reserve_probe(root):
             raise ValueError('unsafe budget permissions')
     finally:
         os.close(fd)
+    table='invoice_probe' if invoice else 'probe'
     with sqlite3.connect(path,timeout=5) as db:
-        db.execute('CREATE TABLE IF NOT EXISTS probe (id INTEGER PRIMARY KEY CHECK(id=1), reserved INTEGER NOT NULL)')
+        db.execute(f'CREATE TABLE IF NOT EXISTS {table} (id INTEGER PRIMARY KEY CHECK(id=1), reserved INTEGER NOT NULL)')
         db.execute('BEGIN IMMEDIATE')
-        used=db.execute('SELECT reserved FROM probe WHERE id=1').fetchone()
+        used=db.execute(f'SELECT reserved FROM {table} WHERE id=1').fetchone()
         if used:
             raise BudgetExceeded('single-request test allowance already reserved; no request sent')
-        db.execute('INSERT INTO probe VALUES (1,1)')
+        db.execute(f'INSERT INTO {table} VALUES (1,1)')
         db.commit()  # Reserve durably BEFORE HTTP; failures still consume the allowance.
 
 
@@ -175,3 +187,21 @@ def history_once(root,*,transport=tesla_transport,clock=time.time):
         raise ValueError('unexpected billing response; allowance consumed; no retry') from None
     _atomic_json(root,'history.json',raw)
     return {'http_status':200,'returned_sessions':len(items),'pagination_followed':False}
+
+
+def invoice_once(root,content_id,*,transport=tesla_transport,clock=time.time):
+    if not isinstance(content_id,str) or not content_id or len(content_id)>1024 or content_id in ('.','..') or any(ord(c)<33 for c in content_id):
+        raise ValueError('invalid invoice reference')
+    token=load_tokens(root,clock=clock)['access_token']
+    url=INVOICE_PREFIX+quote(content_id,safe='')
+    _reserve_probe(root,invoice=True)
+    try:
+        status,body=transport(url,None,{'Authorization':'Bearer '+token},20)
+    except Exception:
+        raise ValueError('invoice request failed; allowance consumed; no retry') from None
+    if type(status) is not int or status!=200:
+        raise ValueError('invoice request rejected; allowance consumed; no retry')
+    if not isinstance(body,bytes) or len(body)>MAX_RESPONSE or b'%PDF-' not in body[:1024]:
+        raise ValueError('invoice response is not a PDF; allowance consumed; no retry')
+    _atomic_bytes(root,'invoice.pdf',body)
+    return {'http_status':200,'pdf_bytes':len(body)}

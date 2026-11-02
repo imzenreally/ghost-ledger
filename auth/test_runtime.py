@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from runtime import save_tokens, load_tokens, history_once, BudgetExceeded, tesla_transport
+from runtime import save_tokens, load_tokens, history_once, invoice_once, BudgetExceeded, tesla_transport
 
 TOKENS={'access_token':'synthetic-access','refresh_token':'synthetic-refresh','expires_in':3600,'token_type':'Bearer'}
 
@@ -13,6 +13,28 @@ class RuntimeTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name).resolve()/'private'
+
+    def test_invoice_is_single_call_and_private_pdf(self):
+        save_tokens(self.root,TOKENS,clock=lambda:1000)
+        calls=[]
+        def transport(url,data,headers,timeout):
+            calls.append(url)
+            return 200,b'%PDF-1.4\nsynthetic invoice only'
+        result=invoice_once(self.root,'synthetic-id',transport=transport,clock=lambda:1001)
+        self.assertEqual(calls,['https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/dx/charging/invoice/synthetic-id'])
+        self.assertEqual(result['http_status'],200)
+        self.assertEqual(os.stat(self.root/'invoice.pdf').st_mode&0o777,0o600)
+        with self.assertRaises(BudgetExceeded):
+            invoice_once(self.root,'another-id',transport=transport,clock=lambda:1002)
+        self.assertEqual(len(calls),1)
+
+    def test_invoice_rejects_fake_pdf_and_consumes_allowance(self):
+        save_tokens(self.root,TOKENS,clock=lambda:1000)
+        with self.assertRaises(ValueError):
+            invoice_once(self.root,'synthetic-id',transport=lambda *a:(200,b'<html>not a pdf</html>'),clock=lambda:1001)
+        self.assertFalse((self.root/'invoice.pdf').exists())
+        with self.assertRaises(BudgetExceeded):
+            invoice_once(self.root,'synthetic-id',transport=lambda *a:self.fail('retried'),clock=lambda:1001)
 
     def test_private_roundtrip(self):
         save_tokens(self.root,TOKENS,clock=lambda:1000)
