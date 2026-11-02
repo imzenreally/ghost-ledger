@@ -10,8 +10,8 @@
 
 ## Scope and boundaries
 - Cost utility is top priority; do not change unfinished bridge files.
-- Local code/tests and private GitHub commits/pushes authorized. the owner authorized one bounded Fleet charging-history test, no retries or pagination; authentication prerequisites are not yet complete. No HA token extraction, app permission/billing-limit changes, production DB writes, or deployment without resolving prerequisites and exact scope.
-- MVP previews exact-session updates. No dashboard, tariff warehouse, foreign-exchange estimates, PDF parser, or Sentry USB writer yet.
+- Local code/tests and private GitHub commits/pushes authorized. Separate Fleet authorization, one history response and one invoice are verified. the owner now authorizes building the narrow TeslaMate missing-cost importer and simple dashboard. Preserve existing/manual/home costs, require backup and transactional readback for production writes. No HA token extraction or app permission/billing-limit changes.
+- Current milestone includes a small review dashboard, explicitly LAN/VPN only WITH login. No public proxy or DNS exposure. Home remains fixed $0.10/kWh, no changes. No automatic scheduling, additional Fleet pagination/retries, tariff warehouse, FX, Sentry USB, or Traccar work in this milestone.
 - Reuse audited MIT supported-Fleet reader patterns where useful; do not copy unlicensed projects. Official endpoint/account semantics must be verified before API implementation.
 - Test fixtures are explicitly synthetic, not claimed to be Tesla API responses.
 
@@ -45,4 +45,8 @@ Inspect supported import/API interface independently. Add second adapter only af
 2. User registers additional callback and signs in; validate one real history response against one invoice before assuming financial semantics. Existing HA app and grant stay intact. Localhost callback requires browser on runner machine or a loopback SSH tunnel; never expose callback listener to LAN.
 3. Read-only TeslaMate session comparison, then narrow approved writer with backups, compare-and-set, idempotence and readback. Protect existing/manual/home costs; ambiguous or pending bills remain unresolved.
 4. Configure conservative bounded billing catch-up using existing local charging state; independent request allowance below shared account budget. Dashboard usage remains authoritative. Do not claim this controls HA's other consumption.
-5. Exercise installed process/restart behavior before claiming road-trip readiness. Sentry USB, modular adapters, dashboards and bridge completion are deferred.
+5. Exercise installed process/restart behavior before claiming road-trip readiness. Sentry USB, modular adapters and bridge completion remain deferred. The simple private review dashboard is now part of the approved current milestone.
+
+## Verified owner milestone completion
+
+The narrow importer and LAN/VPN login-protected dashboard are implemented and exercised. Real missing-cost updates, independent full cost-table comparison, repeat no-op import, dashboard authenticated/anonymous boundaries, mobile layout and LaunchAgent restart have been verified. Existing disagreements remain conflicts and home stays fixed10c/kWh. No scheduler or unattended catch-up was enabled. Manual `ledger.py` supports cached preview/import and an explicit single-page `--fetch` with separate durable4/day100/month UTC request guards; expired tokens require separate sign-in until refresh is implemented later. See `docs/owner-milestone.md` and README for the exact owner runtime.

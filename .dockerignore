@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+__pycache__
+*.pyc
+*.sqlite*
+*.db*
+private
+invoices
+state
+*.dump
+*.pdf

@@ -1,32 +1,59 @@
 # Ghost Ledger
 
-Evidence-first Tesla charging bill reconciliation for TeslaMate. Sentry USB support is planned, not implemented.
+Evidence-first **Supercharger billing** reconciliation for TeslaMate, with a private review dashboard. Home charging stays with TeslaMate at the owner's confirmed flat **$0.10/kWh**. Sentry USB support is not implemented.
 
-## Development status
+## Working owner milestone
 
-Early development. Separate live Tesla authorization is verified; no database writer or unattended service is enabled.
+- Separate Fleet authorization, a small real history response and an invoice comparison verified.
+- Manual importer with exact vehicle identity, unique start/end/charger-energy corroboration, paid USD billing validation and conservative unsupported-record rejection.
+- Transactional missing-cost writes with a fresh scoped backup, pending evidence/audit, in-transaction revalidation, `cost IS NULL` protection and exact readback.
+- Real owner-authorized updates independently verified against the complete charging-cost table; repeat import performed no further writes.
+- LAN/VPN-only password-protected, read-only dashboard installed on the owner's M1. Shows billed/current costs, imported sessions and unresolved conflicts. No public route.
+- No scheduler, unattended Fleet fetching, automatic token refresh, vehicle polling/wake/commands, or HA credential reuse.
 
-Implemented the offline reconciliation preview (`charging_costs/reconcile.py`) and a runnable, owner-specific Fleet sign-in plus single-request billing probe (`auth/ghost_ledger.py`). Live separate authorization, a bounded history pull, and one invoice fetch have now succeeded. An invoice total was checked against structured history, and a read-only TeslaMate comparison was exercised. No database writer or unattended deployment exists yet.
+See [owner deployment, security and recovery](docs/owner-milestone.md).
 
-[Sign-in/test instructions](docs/sign-in.md) describe the additional callback, private credentials, laptop-to-M1 loopback tunnel, and durable one-call guard. Existing HA authorization is never borrowed. Authentication tests use synthetic responses and real local loopback HTTP; the billing probe requires explicit invocation.
+## Manual commands
 
-Qwen use for this project is stopped at the owner's request; further work is direct implementation.
-
-Run the tests with Python 3.12:
+Use the Python 3.12 environment with `requirements.txt` installed. Cached history is the default:
 
 ```sh
-python3 -m unittest discover -s charging_costs -v
+python ledger.py preview
+python ledger.py import --apply
 ```
 
-The matcher is an initial preview only. Preserve unknowns and confirmed zero costs, require exact vehicle identity, refuse ambiguous matches, and protect existing costs. A time-only preview is not sufficient evidence for production writes.
+Only an explicit `--fetch` makes one new latest-page Fleet request:
+
+```sh
+python ledger.py preview --fetch
+# Or fetch, then explicitly import safely:
+python ledger.py import --apply --fetch
+```
+
+Manual request allowance: **4/day, 100/month, UTC**, persistent and reserved before transport; failed requests count. This is a request cap, not a guaranteed dollar estimate or a controller for HA's separate usage. No retries or pagination. The original lifetime test-probe allowance is never reset. Expired Ghost Ledger authorization blocks fetching until separate sign-in is renewed; it does not borrow HA tokens.
+
+[Sign-in instructions](docs/sign-in.md) describe the registered loopback callback, private credentials and browser tunnel. Those commands are the original one-shot access probes, not the ongoing manual import interface.
+
+## Verification
+
+```sh
+python -m unittest discover -s auth -v
+python -m unittest discover -s charging_costs -v
+python -m unittest test_ledger test_manual_reader test_owner_database test_workflow test_dashboard test_ledger_store test_dashboard_server -v
+```
+
+PostgreSQL integration tests require `GHOST_LEDGER_TEST_DSN` explicitly pointing to a **disposable loopback database named `synthetic`**. They create/drop synthetic tables. Never point them at production. Without it, those tests skip rather than touch a real database.
+
+The original `charging_costs/reconcile.py` remains a minimal pure time-window preview. Production writes use the stronger `importer.py`/`postgres.py` path, not that early matcher.
 
 ## Boundaries
 
-- No vehicle polling, wake requests, or commands.
-- No extraction of Home Assistant or TeslaMate tokens.
-- No guessed tariffs presented as invoices.
-- Manual/home costs protected; revisions and provenance explicit.
-- TeslaMate first; Sentry USB adapter later after interface verification.
-- No third telemetry warehouse or indefinite invoice archive.
+- Existing costs, including zero, are protected. Disagreements are visible, not silently corrected.
+- Home charging and tariff configuration are untouched.
+- Refunds/credits, foreign exchange, older pagination/backfill and unsupported billing semantics require separate work.
+- A same-amount existing cost is not proof that this application imported it.
+- Unknown commit outcomes block automatic retries; changed evidence after import requires review.
+- No third GPS warehouse or indefinite invoice archive.
+- Direct implementation; Qwen use remains stopped at the owner's request.
 
 See [implementation plan](docs/plans/implementation.md).
