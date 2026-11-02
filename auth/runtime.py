@@ -18,6 +18,7 @@ from urllib.parse import quote, unquote
 TOKEN_URL='https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token'
 HISTORY_URL='https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/dx/charging/history?pageSize=5'
 INVOICE_PREFIX='https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/dx/charging/invoice/'
+AUTOMATIC_HISTORY_URLS=frozenset('https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/dx/charging/history?pageSize=50'+suffix for suffix in ('','&pageNo=1','&pageNo=2'))
 MAX_RESPONSE=2*1024*1024
 
 class BudgetExceeded(ValueError):
@@ -110,7 +111,7 @@ def tesla_transport(url,data,headers,timeout):
     """Strict endpoint allowlist; finite socket timeout, not a total DNS deadline."""
     if (url==TOKEN_URL and data is not None):
         method='POST'; limit=65536
-    elif url==HISTORY_URL and data is None:
+    elif (url==HISTORY_URL or url in AUTOMATIC_HISTORY_URLS) and data is None:
         method='GET'; limit=MAX_RESPONSE
     elif url.startswith(INVOICE_PREFIX) and data is None:
         segment=url[len(INVOICE_PREFIX):]

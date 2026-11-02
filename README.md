@@ -9,7 +9,7 @@ Evidence-first **Supercharger billing** reconciliation for TeslaMate, with a pri
 - Transactional missing-cost writes with a fresh scoped backup, pending evidence/audit, in-transaction revalidation, `cost IS NULL` protection and exact readback.
 - Real owner-authorized updates independently verified against the complete charging-cost table; repeat import performed no further writes.
 - LAN/VPN-only, read-only dashboard with login disabled at the owner's request installed on the owner's M1. Shows billed/current costs, imported sessions and unresolved conflicts. No public route.
-- Own-token renewal and passive TeslaMate completion detection are installed; see [maintenance and detection](docs/passive-maintenance.md). No billing scheduler, unattended billing fetching/imports, vehicle polling/wake/commands, or HA credential reuse.
+- Own-token renewal and passive TeslaMate completion detection are installed; see [maintenance and detection](docs/passive-maintenance.md). Event-driven delayed billing checks and due-target-only guarded imports are now enabled; see [automatic reconciliation](docs/automatic-billing.md). No idle billing polling, vehicle polling/wake/commands, or HA credential reuse.
 
 See [owner deployment, security and recovery](docs/owner-milestone.md).
 

@@ -9,6 +9,16 @@ from charging_costs.test_importer import bill, session
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_apply_can_only_touch_explicit_target_sessions(self):
+        from workflow import run_import
+        with tempfile.TemporaryDirectory() as tmp:
+            store=LedgerStore(Path(tmp).resolve()/'state'/'ledger.sqlite3')
+            repo=FakeRepository([session()])
+            result=run_import([bill()],repo,store,apply=True,allowed_session_ids={999})
+            self.assertEqual(result['imported'],0)
+            self.assertEqual(repo.writes,0)
+            self.assertEqual(store.events(),[])
+
     def test_import_is_journaled_and_visible_then_repeat_is_noop(self):
         from workflow import run_import
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,6 +1,6 @@
 # Own-token renewal + passive completion detection
 
-This milestone enables **only** automatic Ghost Ledger token renewal and passive TeslaMate completion detection. It does not fetch charging bills, paginate history, schedule billing retries, or import costs automatically. The earlier manual CLI remains explicit.
+This document describes the token renewal and passive detection components. A later authorized worker now connects confirmed completions to bounded delayed billing checks/imports; see `automatic-billing.md`. The passive subscriber itself still does not fetch bills or write costs.
 
 ## Installed service
 

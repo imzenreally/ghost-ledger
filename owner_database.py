@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shlex
+import re
 import socket
 import subprocess
 import time
@@ -40,6 +41,7 @@ class OwnerDatabase:
         self._password = None
         self._active = False
         self.port = None
+        self._dbname = 'teslamate'
 
     def _ssh_options(self):
         # Do not inherit alias settings that fork/persist a control-master daemon.
@@ -67,6 +69,10 @@ class OwnerDatabase:
             raw = self._capture('docker inspect teslamate-database-1')
             records = json.loads(raw)
             networks = records[0]['NetworkSettings']['Networks']
+            env = dict(v.split('=',1) for v in records[0].get('Config',{}).get('Env',[]) if '=' in v)
+            self._dbname = env.get('POSTGRES_DB','teslamate')
+            if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,62}',self._dbname):
+                raise ValueError('invalid database name')
             ips = {str(ipaddress.IPv4Address(n['IPAddress'])) for n in networks.values() if n.get('IPAddress')}
             if len(ips) != 1:
                 raise ValueError('ambiguous container address')
@@ -123,7 +129,7 @@ class OwnerDatabase:
             if connector is None:
                 import psycopg
                 connector = psycopg.connect
-            return connector(host='127.0.0.1', port=self.port, dbname='teslamate', user='teslamate',
+            return connector(host='127.0.0.1', port=self.port, dbname=self._dbname, user='teslamate',
                              password=self._password, application_name='ghost-ledger', connect_timeout=5,
                              options='-c statement_timeout=10000 -c lock_timeout=5000')
         except Exception:
@@ -135,7 +141,7 @@ class OwnerDatabase:
         path = private_path(path)
         # The container shell expands its own environment; no password leaves in argv.
         dump = ('PGPASSWORD="$POSTGRES_PASSWORD" exec pg_dump --format=custom --no-password '
-                '--username=teslamate --dbname=teslamate '
+                '--username=teslamate --dbname=' + shlex.quote(self._dbname) + ' '
                 '--table=public.charging_processes --table=public.cars --table=public.geofences')
         command = 'docker exec teslamate-database-1 sh -c ' + shlex.quote(dump)
         created = False

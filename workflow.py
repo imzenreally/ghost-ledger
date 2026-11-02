@@ -72,7 +72,7 @@ def _pending_evidence(store, history, row):
     return path.name
 
 
-def run_import(history, repo, store, *, apply=False):
+def run_import(history, repo, store, *, apply=False, allowed_session_ids=None):
     """Fresh preview, durable pending evidence, guarded writes, fresh DB readback.
 
     Caller must take a backup before apply=True. Any unknown commit is NOT retried.
@@ -85,7 +85,7 @@ def run_import(history, repo, store, *, apply=False):
     results = []
     if apply:
         for row in rows:
-            if row['status'] != 'ready':
+            if row['status'] != 'ready' or (allowed_session_ids is not None and row['session_id'] not in allowed_session_ids):
                 continue
             evidence = _pending_evidence(store, history, row)
             store.record_event(row['external_id'], row['session_id'], row['amount'], 'pending', evidence)

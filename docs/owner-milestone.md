@@ -4,7 +4,7 @@
 
 Home remains **$0.10/kWh**, flat rate, managed by TeslaMate. Ghost Ledger imports evidenced Tesla-billed Supercharger costs only. It never changes home rates, wakes/polls a vehicle, changes the HA grant, or overwrites an existing cost (including zero). Existing-cost disagreements and weak matches remain review conflicts.
 
-The dashboard is deliberately read-only. Importing is an explicit owner CLI operation, not an HTTP action. No billing scheduler or automatic billing fetching is enabled. A later authorized maintenance milestone added own-token renewal and passive completion detection; see `passive-maintenance.md`.
+The dashboard is deliberately read-only. Importing is an explicit owner CLI operation, not an HTTP action. Later authorized milestones added own-token renewal, passive completion detection and event-driven guarded billing imports. See `passive-maintenance.md` and `automatic-billing.md`; the dashboard itself remains read-only.
 
 ## Private dashboard
 
