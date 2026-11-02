@@ -12,7 +12,7 @@ class ReaderTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(dir=tempfile.gettempdir())
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         os.chmod(self.root, 0o700)
         runtime.save_tokens(self.root, {'access_token': 'fixture-access', 'refresh_token': 'fixture-refresh', 'expires_in': 3600}, clock=lambda: 100)
 

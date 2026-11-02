@@ -182,7 +182,7 @@ def run(root, credential_path):
                     'mqtt_connected':connected,'mqtt_status':mqtt_status,'subscription':'state_only','mqtt_publish_enabled':False,
                     'renewal':renewal,'confirmation':db_status,'coverage':snap['coverage'],
                     'candidate_counts':{s:sum(r['status']==s for r in snap['rows']) for s in sorted({r['status'] for r in snap['rows']})},
-                    'billing_fetch_enabled':False,'automatic_import_enabled':False})
+                    'billing_actions_in_this_process':False,'billing_worker_status_file':'billing-status.json'})
                 next_status=time.monotonic()+10
     finally:
         client.disconnect();detector.disconnected();detector.close();os.close(fd)

@@ -12,7 +12,7 @@ class OwnerDatabaseTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(dir=tempfile.gettempdir())
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         self.commands = []
         def run(args, **kwargs):
             self.commands.append((args, kwargs))

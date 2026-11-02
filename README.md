@@ -1,5 +1,7 @@
 # Ghost Ledger
 
+Deployment addresses, usernames, paths and service labels in this public source are illustrative examples. Keep actual credentials and host configuration in private local files; never commit billing records, VINs, tokens or database backups.
+
 Evidence-first **Supercharger billing** reconciliation for TeslaMate, with a private review dashboard. Home charging stays with TeslaMate at the owner's confirmed flat **$0.10/kWh**. Sentry USB support is not implemented.
 
 ## Working owner milestone

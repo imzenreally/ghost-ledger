@@ -25,5 +25,7 @@ dashboard-access.txt
 mqtt-config.json
 refresh-state.json
 passive-status.json
+billing-status.json
+automatic-history.json
 *.lock
 .DS_Store

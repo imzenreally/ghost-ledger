@@ -14,7 +14,7 @@ class LedgerCliTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(dir=tempfile.gettempdir())
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         self.history = self.root / 'history.json'
         runtime._atomic_json(self.root, self.history.name, {'response': {'data': []}})
         self.args = ['--history', str(self.history), '--state', str(self.root / 'ledger.sqlite3')]
