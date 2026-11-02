@@ -46,7 +46,7 @@ class LoginIntegrationTests(unittest.TestCase):
                     self.assertTrue(ready.wait(timeout=2))
                     state=parse_qs(urlsplit(urls[0]).query)['state'][0]
                     port=servers[0].port
-                    url=f'http://127.0.0.1:{port}/callback?'+urlencode({'state':state,'code':'synthetic-code'})
+                    url=f'http://127.0.0.1:{port}/callback?'+urlencode({'state':state,'code':'synthetic-code','issuer':'https://auth.tesla.com/oauth2/v3'})
                     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
                     with opener.open(url,timeout=2) as response:
                         self.assertEqual(response.status,200)

@@ -30,7 +30,7 @@ def _parse_query(query):
     for key, value in items:
         if key in fields:
             raise ValueError("callback query has duplicate fields")
-        if key not in _FIELDS:
+        if key not in (*_FIELDS, "issuer"):
             raise ValueError("callback query has unknown fields")
         fields[key] = value
     return fields
@@ -103,8 +103,10 @@ class OAuthAttempt:
             if self._used or self._expired:
                 raise ValueError("attempt is unavailable")
             fields = _parse_query(query_string)
-            if set(fields) != set(_FIELDS):
+            if set(fields) - {"issuer"} != set(_FIELDS):
                 raise ValueError("callback query must contain state and code")
+            if "issuer" in fields and fields["issuer"] != "https://auth.tesla.com/oauth2/v3":
+                raise ValueError("callback issuer does not match Tesla")
             state, code = fields["state"], fields["code"]
             if not state.isascii() or not secrets.compare_digest(state, self._state):
                 raise ValueError("callback state does not match")
