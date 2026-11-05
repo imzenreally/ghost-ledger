@@ -9,8 +9,8 @@ The automatic worker connects completed TeslaMate sessions to the existing guard
 3. Home is skipped. A completed non-home session with a known away geofence **or an unknown geofence** can be checked; unknown is not assumed to be a Supercharger.
 4. The first charging-history check is due five minutes after the completion receipt. If a successful response lacks a finalized matching bill, checks are due at 30 minutes and two hours.
 5. A paid USD bill must pass the same identity, time, energy, duplicate/ambiguity and fee validations as a manual import.
-6. Only the due target's missing cost may be written, after a validated scoped backup, durable pending evidence and transactional revalidation/readback. Other returned bills may be shown for review but are not automatically written merely because they appeared on the page.
-7. Existing costs (including zero), home costs, conflicts and uncertain commits remain protected.
+6. Only exact due targets may be written, after a validated scoped backup, durable pending evidence and transactional revalidation/readback. Other returned bills may be shown for review but are not automatically written merely because they appeared on the page.
+7. Existing costs (including zero) are protected by default. Explicit [Tesla-bill authority](tesla-bill-authority.md) can replace an existing estimate within an approved cutoff, preserving old/new amounts and revalidating the previous cost and identity. Home, ambiguous matches, uncertain commits, and changed previously imported evidence remain protected.
 
 There is no idle periodic Tesla history poll. With no eligible pending job, the worker makes no history requests. Local queue checks and authentication renewal are not vehicle polling.
 
@@ -25,9 +25,9 @@ There is no idle periodic Tesla history poll. With no eligible pending job, the 
 - No blind retry after a possible database commit. Crashes with a pending round leave jobs needing review. Authentication/unsupported data/conflicts stop for review; missing bills exhaust the finite schedule.
 - Transport/rate-limit failures stop the current round and may pause until the next UTC day, still subject to the same durable limits. No immediate retry loop.
 
-## Installed worker
+## Worker supervision example
 
-The owner deployment uses native LaunchAgent `org.example.ghost-ledger-billing`, separate from the MQTT subscriber so HTTP/database operations cannot starve MQTT callbacks. The worker checks its local queue every 30 seconds. It uses the same private state directory, interpreter and guarded importer as the manual CLI.
+A native macOS installation can use LaunchAgent `org.example.ghost-ledger-billing`, separate from the MQTT subscriber so HTTP/database operations cannot starve MQTT callbacks. The worker checks its local queue every 30 seconds. It uses the same private state directory, interpreter and guarded importer as the manual CLI. The label and commands below are illustrative; supply your own process configuration.
 
 ```sh
 launchctl print gui/$(id -u)/org.example.ghost-ledger-billing
@@ -45,7 +45,7 @@ Private operational files:
 - `automatic-history.json`: latest bounded private response, not served by the dashboard.
 - `manual-budget.sqlite3`: shared request reservations.
 
-The read-only LAN dashboard refreshes from the same import ledger after writes. Its network scope and owner-selected no-login mode are unchanged.
+The private dashboard refreshes from the same import ledger after writes. Login is required by default; deliberately disabling it does not alter network-scope, signing, or write-path safeguards. See the deployment runbook.
 
 ## Daily safety net and notifications
 
@@ -87,4 +87,4 @@ This is a deliberate write path: read-only dashboard routes are unchanged, and o
 
 Tests exercise the complete synthetic completion → read-only DB confirmation → durable schedule → injected Tesla response → real disposable PostgreSQL update/readback, including backup and repeat no-op behavior. Synthetic API responses are not represented as live Tesla billing data.
 
-A real future charging completion is still needed to validate natural publication timing and actual billing delay. No fake completion is published to the production broker to manufacture this proof. The live-only detector may miss sessions during downtime; historical backfill is not enabled. Exhausted, conflicted or unconfirmed work requires review.
+Each installation should verify natural completion timing, actual bill availability, and independent database readback without publishing personal trip data. Do not publish fake completions to a production broker to manufacture proof. The live-only detector may miss sessions during downtime; the bounded daily missing-cost safety net does not provide unlimited historical backfill or historical estimate replacement. Exhausted, conflicted or unconfirmed work requires review.

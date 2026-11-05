@@ -2,9 +2,9 @@
 
 This document describes the token renewal and passive detection components. A later authorized worker now connects confirmed completions to bounded delayed billing checks/imports; see `automatic-billing.md`. The passive subscriber itself still does not fetch bills or write costs.
 
-## Installed service
+## Supervision example
 
-M1 LaunchAgent: `org.example.ghost-ledger-passive`.
+For a native macOS installation, an illustrative LaunchAgent label is `org.example.ghost-ledger-passive`. Supply your own service definition; these commands do not install it.
 
 ```sh
 launchctl print gui/$(id -u)/org.example.ghost-ledger-passive
@@ -55,10 +55,10 @@ The live-only approach can miss sessions during service/broker downtime or if st
 
 ### Native macOS networking
 
-Direct LAN broker connection from the LaunchAgent returned `OSError errno65` while the interactive subscription worked. Installed service uses a private, short-lived SSH loopback forward through existing `dockerhost` to the broker. It exposes no broker/DB port on LAN, includes no password in argv, and cleans up its SSH child on graceful exit. ServerAlive checks terminate broken tunnels; reconnect is local broker reconnection, not Tesla API retrying.
+The native service can use a private, short-lived SSH loopback forward through the configured `dockerhost` alias to the broker. It exposes no broker/DB port on the LAN, includes no password in argv, and cleans up its SSH child on graceful exit. ServerAlive checks terminate broken tunnels; reconnect is local broker reconnection, not Tesla API retrying. Validate supervised-process networking separately from an interactive terminal and do not weaken host security to resolve connectivity.
 
 ## Verification
 
-Synthetic tests cover retained replay, reconnects, duplicates, rotation/crash recovery, process contention, queue retention, home/away/unknown and bounded read-only SQL. Real own-token rotation and persisted-token validity were checked once. Actual background MQTT SUBACK/retained receipt and service restart must be checked via `passive-status.json`. Read-only confirmation was exercised against existing home/away DB sessions using synthetic local receipt events; those were not published or presented as new live charges.
+Synthetic tests cover retained replay, reconnects, duplicates, rotation/crash recovery, process contention, queue retention, home/away/unknown classification, and bounded read-only SQL. Verify your own supervised MQTT SUBACK, token persistence, and service recovery through private status files. Keep real token and session details out of public reports.
 
-No real post-deployment charging completion has been observed yet. That will be the first natural end-to-end detection check; do not wake/charge the car solely to manufacture one.
+Verify natural post-deployment completions without waking/charging a vehicle solely to manufacture a test. The live-only detector's gaps are separate from the billing worker's bounded daily missing-cost safety net.

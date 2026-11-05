@@ -1,67 +1,61 @@
-# Sign-in and single-request test — the owner's setup
+# Separate Fleet authorization and optional single-request probe
 
-This is the runnable first milestone, **not the automatic TeslaMate updater yet**.
-It uses the existing Tesla developer app, but obtains a separate Ghost Ledger grant.
-No HA token file, HA integration configuration, vehicle endpoint, or billing limit is touched.
+Ghost Ledger obtains its **own** Fleet grant. It must not extract or reuse Home Assistant/TeslaMate access or refresh tokens. Later components provide token renewal and automatic reconciliation; this document covers initial consent and the optional tightly bounded access probe, not the whole deployment.
 
-## 1. Register the extra redirect
+## 1. Register the callback
 
-In the existing Tesla developer application, add this **additional** Allowed Redirect URI:
+Configure your Tesla developer application with the additional Allowed Redirect URI:
 
-```
+```text
 http://localhost:8769/callback
 ```
 
-Keep `https://my.home-assistant.io/redirect/oauth` and existing origins/permissions intact.
-Tesla's portal acceptance of this localhost URI must be checked; if rejected, stop and report that, do not guess another URI.
+Preserve redirects, origins, and permissions used by other applications. Verify portal acceptance and required charging-history entitlement rather than guessing another callback. Review requested consent scopes: a scope permitting charging-history access may also cover charging commands, although Ghost Ledger itself does not issue vehicle commands.
 
-## 2. Prepare local credentials, never in chat or git
+## 2. Prepare private application credentials
 
-Copy `.env.example` to `.env` in the Ghost Ledger checkout, set mode 0600, and edit locally with the existing app's client ID and client secret. Do not use HA's access/refresh tokens. Do not commit this file or put the secret directly in command arguments.
-
-```
+```sh
 cp .env.example .env
 chmod 600 .env
 ```
 
-## 3. Browser on laptop, process on M1
+Edit locally with your application's client ID and client secret. Do not commit this file, paste it in a support request, or put secrets in command arguments. These are developer application credentials, not another service's access/refresh tokens.
 
-The callback listener runs on `127.0.0.1:8769`, not the LAN. If browsing Tesla on another laptop, open an SSH loopback tunnel from that laptop to the M1 and keep it open:
+## 3. Sign in on the correct host
 
-```
-ssh -N -o ExitOnForwardFailure=yes -L 127.0.0.1:8769:127.0.0.1:8769 user@10.0.0.10
-```
+The callback listener binds `127.0.0.1:8769`, not the LAN. `localhost` means the machine running the browser. If the process runs on another host, open a private loopback SSH tunnel **from the browser's machine** to the process host:
 
-Do not run this command on the M1 itself. If port 8769 is already occupied or SSH access fails, stop and resolve that before starting sign-in. A browser on the M1 does not need the tunnel.
-
-From the M1 checkout, using Python 3.12 or newer:
-
-```
-python3 auth/ghost_ledger.py --env-file .env login
+```sh
+ssh -N -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:8769:127.0.0.1:8769 user@example-host
 ```
 
-Open the displayed Tesla authorize link in the browser on the M1 or tunneled laptop. Review the Tesla consent screen; do not remove permissions needed by HA. The listener expires after five minutes, stops after the callback, and exchanges the code once. No code/token is printed in command output. Invalid requests are not logged. Tokens are atomically stored mode 0600 under `~/.local/share/ghost-ledger/` (directory mode 0700).
+Replace `user@example-host` with your own SSH destination. A browser on the process host needs no tunnel. Resolve occupied ports or forwarding failures before starting sign-in.
 
-No token refresh daemon exists in this milestone. Expired authorization stops the probe; it does not try HA credentials.
+From the checkout with Python 3.12+ and dependencies installed:
 
-## 4. Exactly one billable probe
-
-After successful sign-in, on the M1:
-
-```
-python3 auth/ghost_ledger.py history-once
+```sh
+python auth/ghost_ledger.py --env-file .env login
 ```
 
-This sends one GET for at most a small history page (`pageSize=5`). No pagination, invoice PDF request, retries, wake, vehicle data or commands. The command prints only HTTP status, returned record count, and `pagination_followed: false`; sensitive raw history stays in the private state directory as `history.json`.
+Open the displayed authorization link and review Tesla's consent screen. The listener expires after five minutes and exchanges the callback once. Invalid callback details, codes, and tokens are not logged. Tokens are stored atomically with mode `0600` under the private state directory, default `~/.local/share/ghost-ledger/` with mode `0700`.
 
-The allowance is reserved durably before HTTP and is **one request total** across restarts and concurrent calls. Even a failure/timeout consumes it. Do not delete/reset the budget file to retry without discussing the result. The ledger is a request cap, not Tesla's account billing meter. HA's independent usage still consumes the shared developer allowance. Tesla's dashboard is authoritative; its account-level limit stays unchanged.
+The [passive service](passive-maintenance.md) can renew this grant. Ambiguous token exchange/rotation requires operator recovery, not borrowing another application's tokens or retrying a potentially consumed refresh token blindly.
 
-Authentication endpoints are not billed per Tesla's third-party authentication documentation. Charging history/error requests can be billable. Exact endpoint rate/account credit application is not inferred by this tool.
+## 4. Optional one-shot access probe
 
-## Verified offline coverage
+```sh
+python auth/ghost_ledger.py history-once
+```
 
-Actual loopback HTTP callback -> injected synthetic token endpoint -> private token store. Separate tests enforce denied endpoints, durable one-call allowance including failures, concurrent reservations, expiry, sanitized errors and malformed callbacks. These tests do not prove live Tesla entitlement or portal redirect acceptance.
+This is an initial diagnostic, **not a command to run after every charge**. It requests at most one small history page (`pageSize=5`), with no pagination, invoice PDF download, immediate retry, or vehicle call. Output is limited to HTTP status, count, and pagination status; sensitive response data remains in private `history.json`.
 
-## Next gate
+The probe's separate allowance permits **one request total** across restarts and concurrent calls, reserved before transport. Failures and timeouts consume it. Never delete/reset the allowance to manufacture another attempt. Normal manual imports/fetches and automatic billing use their separately bounded shared budget; see the [README](../README.md#automatic-operation-and-request-limits).
 
-Inspect the returned real history and validate financial fields against one invoice before implementing an approved session writer. No automatic TeslaMate cost updates or deployment are present yet.
+Tesla authentication endpoints are documented separately from metered Fleet requests. Charging-history/error requests can be billable. Neither a local request cap nor another application's usage helpers establish an exact invoice amount or control all developer-account spending.
+
+## Verification boundaries
+
+Offline tests exercise real loopback callbacks with synthetic token/history responses, private persistence, concurrent reservations, expiry, endpoint restrictions, and sanitized failures. They do not establish your live Tesla entitlement, portal acceptance, consent, or connectivity.
+
+Before enabling writes, inspect supported billing semantics, verify database/home-geofence adapter assumptions, review a cached preview, and configure backups. See [deployment and recovery](owner-milestone.md), [automatic reconciliation](automatic-billing.md), and [optional existing-cost replacement](tesla-bill-authority.md).

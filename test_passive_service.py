@@ -50,8 +50,8 @@ class ServiceTests(unittest.TestCase):
 
     def test_broker_tunnel_is_loopback_and_does_not_include_password(self):
         from passive_service import broker_tunnel_arguments
-        args=broker_tunnel_arguments({'host':'192.168.0.11','port':1884,'password':'never-in-argv'}, 43210)
-        self.assertIn('127.0.0.1:43210:192.168.0.11:1884',args)
+        args=broker_tunnel_arguments({'host':'192.0.2.10','port':1884,'password':'never-in-argv'}, 43210)
+        self.assertIn('127.0.0.1:43210:192.0.2.10:1884',args)
         self.assertNotIn('never-in-argv',' '.join(args))
         self.assertIn('ExitOnForwardFailure=yes',args)
 
