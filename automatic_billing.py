@@ -8,12 +8,14 @@ from pathlib import Path
 from decimal import Decimal
 import json
 import math
+import os
 import time
 import uuid
 
 from auth import runtime
 from charging_costs.importer import timestamp, build_preview, normalize_bill, corroborates
 from charging_costs.postgres import COLUMNS, SELECT, PgRepository
+from charging_costs.policy import from_environment
 from ledger import import_lock
 from ledger_store import LedgerStore
 from manual_reader import ManualReaderError, private_path, reserve_manual, _decode, _records
@@ -24,8 +26,8 @@ from workflow import run_import
 HISTORY_URL = 'https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/dx/charging/history?pageSize=50'
 
 
-TARGET_COLUMNS = COLUMNS + ('car_id',)
-TARGET_SELECT = SELECT.replace('cp.geofence_id', 'cp.geofence_id, cp.car_id')
+TARGET_COLUMNS = COLUMNS
+TARGET_SELECT = SELECT
 
 
 def _targets(database, ids):
@@ -97,10 +99,10 @@ def _prior_import(row, job, previous_rows, latest_events):
 
 class TargetRepository:
     """Keep ALL candidates for collisions, but permit only due-target writes."""
-    def __init__(self, database, targets):
+    def __init__(self, database, targets, *, policy=None):
         self.database = database
         self.targets = targets
-        self.repository = PgRepository(database.connect)
+        self.repository = PgRepository(database.connect, policy=policy)
 
     def sessions_for(self, history):
         return self.repository.sessions_for(history)
@@ -111,7 +113,7 @@ class TargetRepository:
         if original is None:
             return {'status': 'protected', 'reason': 'Not an eligible due target'}
         current = _targets(self.database, [sid]).get(sid)
-        fields = ('car_id', 'vin', 'start_date', 'end_date', 'charge_energy_used')
+        fields = ('car_id', 'vin', 'start_date', 'end_date', 'charge_energy_used', 'cost', 'geofence_id')
         if current is None or any(current.get(k) != original.get(k) for k in fields):
             return {'status': 'conflict', 'reason': 'Target identity changed; no write'}
         return self.repository.apply(row)
@@ -218,6 +220,7 @@ def check_jobs(root, jobs, *, transport=runtime.tesla_transport,
         return results
     pending = []
     try:
+        policy = from_environment(os.environ)
         root = Path(root)
         state = private_path(root / 'ledger.sqlite3')
         with import_lock(state):
@@ -240,18 +243,20 @@ def check_jobs(root, jobs, *, transport=runtime.tesla_transport,
                         if prior is not None:
                             results[job['session_id']] = prior
                             continue
-                    if row is not None and (str(row.get('geofence_id')) == '1' or row.get('cost') is not None):
+                    if row is not None and (str(row.get('geofence_id')) == '1'
+                            or (policy is None and row.get('cost') is not None)
+                            or (policy is not None and not policy.permits(row))):
                         results[job['session_id']] = 'protected'
                     elif row is not None and _eligible(row, job):
                         pending.append(job['session_id'])
                 if not pending:
                     return results
-                repo = TargetRepository(database, {sid: targets[sid] for sid in pending})
+                repo = TargetRepository(database, {sid: targets[sid] for sid in pending}, policy=policy)
                 history = _history_pages(root, pending, repo, transport, clock)
                 destination = private_path(root / 'automatic-history.json')
                 encoded = json.dumps(history, default=str, allow_nan=False, separators=(',', ':')).encode()
                 runtime._atomic_bytes(root, destination.name, encoded)
-                run_import(history, repo, store)
+                run_import(history, repo, store, policy=policy)
                 outcomes = _outcomes(store, pending, history, targets)
                 ready = {sid for sid, outcome in outcomes.items() if outcome == 'ready'}
                 if ready:
@@ -264,16 +269,18 @@ def check_jobs(root, jobs, *, transport=runtime.tesla_transport,
                             raise ValueError('backup validation failed')
                     fresh = _targets(database, sorted(ready))
                     stopped = {}
-                    identity = ('car_id', 'vin', 'start_date', 'end_date', 'charge_energy_used')
+                    identity = ('car_id', 'vin', 'start_date', 'end_date', 'charge_energy_used', 'cost', 'geofence_id')
                     for sid in ready:
                         current = fresh.get(sid)
-                        if current is not None and (str(current.get('geofence_id')) == '1' or current.get('cost') is not None):
+                        if current is not None and (str(current.get('geofence_id')) == '1'
+                                or (policy is None and current.get('cost') is not None)
+                                or (policy is not None and not policy.permits(current))):
                             stopped[sid] = 'protected'
                         elif current is None or any(current.get(k) != targets[sid].get(k) for k in identity):
                             stopped[sid] = 'conflict'
                     allowed = ready - stopped.keys()
                     if allowed:
-                        report = run_import(history, repo, store, apply=True, allowed_session_ids=allowed)
+                        report = run_import(history, repo, store, apply=True, allowed_session_ids=allowed, policy=policy)
                         outcomes = _outcomes(store, pending, history, targets)
                         if report['uncertain']:
                             outcomes = {sid: ('manual_review' if value not in ('imported', 'protected') else value)

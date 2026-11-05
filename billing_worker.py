@@ -38,6 +38,8 @@ def maintenance_cycle(detector, scheduler, check, daily, notifier, store, passiv
 
 
 def run(root):
+    from charging_costs.policy import from_environment
+    from_environment(os.environ)  # Reject malformed opt-in before starting any services.
     from charging_detector import Detector
     from billing_scheduler import Scheduler
     from automatic_billing import check_jobs

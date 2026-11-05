@@ -16,6 +16,7 @@ import uuid
 
 from auth import runtime
 from charging_costs.postgres import PgRepository
+from charging_costs.policy import TeslaBillPolicy
 from ledger_store import LedgerStore
 from manual_reader import ManualReaderError, fetch_latest, private_path, read_history
 from owner_database import OwnerDatabase, OwnerDatabaseError
@@ -51,6 +52,18 @@ def _safe_row(row):
                 safe['amount'] = str(amount)
     except (InvalidOperation, ValueError):
         pass
+    for key in ('previous_cost', 'delta'):
+        if key not in row:
+            continue
+        value = row[key]
+        if value is None:
+            safe[key] = None
+        elif isinstance(value, (str, int, Decimal)) and not isinstance(value, bool) and len(str(value)) <= 64:
+            try:
+                if Decimal(value).is_finite():
+                    safe[key] = str(value)
+            except (InvalidOperation, ValueError):
+                pass
     return safe
 
 
@@ -62,9 +75,22 @@ def main(argv=None, *, database_factory=OwnerDatabase):
         sub.add_argument('--history', type=Path, default=DEFAULT_ROOT / 'history.json')
         sub.add_argument('--state', type=Path, default=DEFAULT_ROOT / 'ledger.sqlite3')
         sub.add_argument('--fetch', action='store_true', help='Explicitly fetch ONE latest history page; consumes manual allowance.')
+        sub.add_argument('--prefer-tesla-bills', action='store_true', help='Cached-only finalized bill authority within --since.')
+        sub.add_argument('--since', help='Explicit timezone-aware ISO cutoff; required with --prefer-tesla-bills.')
+        sub.add_argument('--session-id', type=int, action='append', help='Restrict writes/output to these exact IDs (repeatable).')
         if command == 'import':
-            sub.add_argument('--apply', action='store_true', required=True, help='Explicit missing-cost writes after backup.')
+            sub.add_argument('--apply', action='store_true', required=True, help='Explicit guarded cost writes after backup.')
     args = parser.parse_args(argv)
+    if bool(args.since) != args.prefer_tesla_bills or (args.prefer_tesla_bills and args.fetch):
+        parser.error('--prefer-tesla-bills requires --since and forbids --fetch; use cached history')
+    if args.session_id is not None and (len(args.session_id) > 1000 or any(
+            not 0 < sid <= 9223372036854775807 for sid in args.session_id)):
+        parser.error('session IDs must be positive bounded integers (at most 1000)')
+    try:
+        policy = TeslaBillPolicy(args.since) if args.prefer_tesla_bills else None
+    except (ValueError, TypeError, OverflowError):
+        parser.error('since must be a valid timezone-aware ISO timestamp')
+    allowed = None if args.session_id is None else frozenset(args.session_id)
     try:
         state = private_path(args.state)
         # Validate SQLite sidecars before LedgerStore can follow them.
@@ -77,17 +103,27 @@ def main(argv=None, *, database_factory=OwnerDatabase):
             history = read_history(history_path)
             store = LedgerStore(state)
             with database_factory() as database:
-                repo = PgRepository(database.connect)
+                repo = PgRepository(database.connect, policy=policy) if policy is not None else PgRepository(database.connect)
                 applying = args.command == 'import'
                 if applying:
                     backups = runtime._private_dir(state.parent / 'backups')
-                    database.backup(backups / (uuid.uuid4().hex + '.dump'))
-                report = run_import(history, repo, store, apply=applying)
+                    backup = backups / (uuid.uuid4().hex + '.dump')
+                    database.backup(backup)
+                    if policy is not None:
+                        backup = private_path(backup)
+                        with backup.open('rb') as source:
+                            if source.read(5) != b'PGDMP' or backup.stat().st_size <= 5:
+                                raise ValueError('backup validation failed')
+                report = run_import(history, repo, store, apply=applying,
+                                    allowed_session_ids=allowed, policy=policy)
             # Do not echo reasons, VINs, external billing IDs, tokens or evidence.
+            visible = [row for row in store.snapshot()['rows']
+                       if allowed is None or row.get('session_id') in allowed]
             output = {'imported': report['imported'], 'uncertain': report['uncertain'],
-                      'statuses': {key: value for key, value in report['statuses'].items() if key in STATUSES},
+                      'statuses': {key: sum(row['status'] == key for row in visible)
+                                   for key in sorted({r['status'] for r in visible}) if key in STATUSES},
                       'results': [_safe_row(row) for row in report['results']],
-                      'sessions': [_safe_row(row) for row in store.snapshot()['rows']]}
+                      'sessions': [_safe_row(row) for row in visible]}
             print(json.dumps(output, sort_keys=True))
             return 4 if report['uncertain'] else 0
     except runtime.BudgetExceeded:

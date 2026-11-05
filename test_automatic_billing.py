@@ -61,8 +61,12 @@ class SyntheticConnection:
                 for i in range(0, len(params), 3))]
         elif sql.startswith('UPDATE charging_processes'):
             assert self.db.backups, 'write before backup'
-            amount, sid, home = params
-            found = [r for r in self.db.rows if r['id'] == sid and r['cost'] is None and r['geofence_id'] != home]
+            if len(params) == 4:
+                amount, sid, previous, home = params
+            else:
+                amount, sid, home = params
+                previous = None
+            found = [r for r in self.db.rows if r['id'] == sid and r['cost'] == previous and r['geofence_id'] != home]
             for r in found:
                 r['cost'] = amount
             self.result = [(r['id'],) for r in found]

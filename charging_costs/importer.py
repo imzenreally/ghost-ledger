@@ -129,7 +129,7 @@ def corroborates(bill, session):
         return False
 
 
-def build_preview(history, sessions):
+def build_preview(history, sessions, *, policy=None):
     rows = []
     records = history_records(history)
     candidate_groups = {}
@@ -158,8 +158,21 @@ def build_preview(history, sessions):
                 matched = matches[0]
                 row.update(session_id=matched['id'], status='protected' if matched.get('cost') is not None else 'ready',
                            reason='Existing cost protected' if matched.get('cost') is not None else 'VIN, start, end and charger energy corroborated')
+                if policy is not None:
+                    from .policy import session_snapshot
+                    previous = None if matched.get('cost') is None else number(matched['cost'])
+                    row.update(previous_cost=None if previous is None else str(previous),
+                               delta=None if previous is None else str(bill['amount'] - previous))
+                    row['evidence']['session_snapshot'] = session_snapshot(matched)
+                    row['evidence']['policy_since'] = policy.since.isoformat()
+                    if not policy.permits(matched, bill['start']):
+                        row.update(status='protected', reason='Outside Tesla bill authority cutoff; preview only')
+                    elif previous == bill['amount']:
+                        row.update(status='protected', reason='Existing cost already equals Tesla bill')
+                    else:
+                        row.update(status='ready', reason='Finalized Tesla bill authoritative within explicit cutoff')
         except (ValueError, TypeError, KeyError, ArithmeticError):
-            row['reason'] = 'Invalid or unsupported billing record'
+            row.update(status='invalid', reason='Invalid or unsupported billing record')
         rows.append(row)
     # Preserve IDs even on invalid records, so a duplicate cannot bypass collision checks.
     ids = {}
